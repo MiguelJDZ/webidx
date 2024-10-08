@@ -142,7 +142,7 @@ export default function Home() {
           <button onClick={toggleSidebar} className="mr-4 lg:hidden">
             ☰
           </button>
-          <h1 className="text-2xl font-bold">Webflix IDX</h1>
+          <a href='/' className="text-2xl font-bold">Webflix IDX</a>
         </div>
         <DownloadButton files={files} />
       </div>
