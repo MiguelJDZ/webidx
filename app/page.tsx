@@ -1,101 +1,189 @@
-import Image from "next/image";
+"use client"
+
+import React, { useState } from 'react'
+import dynamic from 'next/dynamic'
+import FileExplorer from './components/FileExplorer'
+import Terminal from './components/Terminal'
+import DownloadButton from './components/DownloadButton'
+import Tabs from './components/Tabs'
+
+const Editor = dynamic(() => import('./components/Editor'), { ssr: false })
+
+interface File {
+  name: string
+  content: string
+  type: 'file' | 'folder'
+  children?: File[]
+}
+
+const initialFiles: File[] = [
+  { name: 'index.html', content: '<h1>Hello, World!</h1>', type: 'file' },
+  { name: 'styles.css', content: 'body { font-family: sans-serif; }', type: 'file' },
+]
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [files, setFiles] = useState<File[]>(initialFiles)
+  const [openFiles, setOpenFiles] = useState<string[]>([])
+  const [activeFile, setActiveFile] = useState<string | null>(null)
+  const [isTerminalCollapsed, setIsTerminalCollapsed] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleFileSelect = (file: File) => {
+    if (file.type === 'file') {
+      if (!openFiles.includes(file.name)) {
+        setOpenFiles([...openFiles, file.name])
+      }
+      setActiveFile(file.name)
+    }
+  }
+
+  const handleTabSelect = (fileName: string) => {
+    setActiveFile(fileName)
+  }
+
+  const handleTabClose = (fileName: string) => {
+    const newOpenFiles = openFiles.filter((name) => name !== fileName)
+    setOpenFiles(newOpenFiles)
+    if (activeFile === fileName) {
+      setActiveFile(newOpenFiles.length > 0 ? newOpenFiles[newOpenFiles.length - 1] : null)
+    }
+  }
+
+  const handleCreateFile = (parentPath: string[], name: string, type: 'file' | 'folder') => {
+    const newFile: File = {
+      name,
+      content: type === 'file' ? '' : '',
+      type,
+      children: type === 'folder' ? [] : undefined
+    }
+
+    const updateFiles = (files: File[], path: string[]): File[] => {
+      if (path.length === 0) {
+        return [...files, newFile]
+      }
+
+      return files.map(file => {
+        if (file.name === path[0] && file.type === 'folder') {
+          return {
+            ...file,
+            children: updateFiles(file.children || [], path.slice(1))
+          }
+        }
+        return file
+      })
+    }
+
+    setFiles(updateFiles(files, parentPath))
+  }
+
+  const handleDeleteFile = (path: string[]) => {
+    const deleteFromFiles = (files: File[], path: string[]): File[] => {
+      if (path.length === 1) {
+        return files.filter(file => file.name !== path[0])
+      }
+
+      return files.map(file => {
+        if (file.name === path[0] && file.type === 'folder') {
+          return {
+            ...file,
+            children: deleteFromFiles(file.children || [], path.slice(1))
+          }
+        }
+        return file
+      })
+    }
+
+    setFiles(deleteFromFiles(files, path))
+    const fileName = path[path.length - 1]
+    if (openFiles.includes(fileName)) {
+      handleTabClose(fileName)
+    }
+  }
+
+  const handleUpdateFile = (path: string[], content: string) => {
+    const updateInFiles = (files: File[], path: string[]): File[] => {
+      if (path.length === 1) {
+        return files.map(file => 
+          file.name === path[0] ? { ...file, content } : file
+        )
+      }
+
+      return files.map(file => {
+        if (file.name === path[0] && file.type === 'folder') {
+          return {
+            ...file,
+            children: updateInFiles(file.children || [], path.slice(1))
+          }
+        }
+        return file
+      })
+    }
+
+    setFiles(updateInFiles(files, path))
+  }
+
+  const toggleTerminal = () => {
+    setIsTerminalCollapsed(!isTerminalCollapsed)
+  }
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen)
+  }
+
+  const getFileContent = (fileName: string): string => {
+    const file = files.find(f => f.name === fileName)
+    return file ? file.content : ''
+  }
+
+  return (
+    <div className="flex flex-col h-screen">
+      <div className="flex justify-between items-center bg-[#181818] text-white p-4">
+        <div className="flex items-center">
+          <button onClick={toggleSidebar} className="mr-4 lg:hidden">
+            ☰
+          </button>
+          <h1 className="text-2xl font-bold">Webflix IDX</h1>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <DownloadButton files={files} />
+      </div>
+      <div className="flex flex-1 overflow-hidden">
+        <div className={`${isSidebarOpen ? 'w-full lg:w-80' : 'w-0'} bg-[#181818] text-white overflow-auto transition-all duration-300 ease-in-out ${isSidebarOpen ? '' : 'hidden lg:block lg:w-0'}`}>
+          <div className="p-4">
+            <h2 className="text-xl font-bold mb-4">File Explorer</h2>
+            <FileExplorer 
+              files={files} 
+              onFileSelect={handleFileSelect}
+              onCreateFile={handleCreateFile}
+              onDeleteFile={handleDeleteFile}
+            />
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col text-gray-500 bg-[#1f1f1f] overflow-hidden">
+          <Tabs
+            openFiles={openFiles}
+            activeFile={activeFile}
+            onSelectTab={handleTabSelect}
+            onCloseTab={handleTabClose}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <div className={`flex-1 overflow-auto ${isTerminalCollapsed ? 'flex-grow' : ''}`}>
+            {activeFile ? (
+              <Editor 
+                file={{ name: activeFile, content: getFileContent(activeFile), type: 'file' }}
+                onUpdateFile={(content) => handleUpdateFile([activeFile], content)} 
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500 bg-[#1f1f1f]">
+                Select a file to edit
+              </div>
+            )}
+          </div>
+          <Terminal 
+            className={isTerminalCollapsed ? 'h-10' : 'h-1/4 min-h-[150px]'}
+            isCollapsed={isTerminalCollapsed}
+            onToggleCollapse={toggleTerminal}
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </div>
+      </div>
     </div>
-  );
+  )
 }
