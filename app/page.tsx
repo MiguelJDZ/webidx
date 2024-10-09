@@ -122,6 +122,37 @@ export default function Home() {
     setFiles(updateInFiles(files, path))
   }
 
+  const handleRenameFile = (path: string[], newName: string) => {
+    const renameInFiles = (files: File[], path: string[]): File[] => {
+      if (path.length === 1) {
+        return files.map(file => 
+          file.name === path[0] ? { ...file, name: newName } : file
+        )
+      }
+
+      return files.map(file => {
+        if (file.name === path[0] && file.type === 'folder') {
+          return {
+            ...file,
+            children: renameInFiles(file.children || [], path.slice(1))
+          }
+        }
+        return file
+      })
+    }
+
+    setFiles(renameInFiles(files, path))
+
+    // Update openFiles and activeFile if the renamed file was open
+    const oldFileName = path[path.length - 1]
+    if (openFiles.includes(oldFileName)) {
+      setOpenFiles(openFiles.map(name => name === oldFileName ? newName : name))
+      if (activeFile === oldFileName) {
+        setActiveFile(newName)
+      }
+    }
+  }
+
   const toggleTerminal = () => {
     setIsTerminalCollapsed(!isTerminalCollapsed)
   }
@@ -151,11 +182,12 @@ export default function Home() {
           <div className="p-4">
             <h2 className="text-xl font-bold mb-4">File Explorer</h2>
             <FileExplorer 
-              files={files} 
-              onFileSelect={handleFileSelect}
-              onCreateFile={handleCreateFile}
-              onDeleteFile={handleDeleteFile}
-            />
+            files={files} 
+            onFileSelect={handleFileSelect}
+            onCreateFile={handleCreateFile}
+            onDeleteFile={handleDeleteFile}
+            onRenameFile={handleRenameFile}
+          />
           </div>
         </div>
         <div className="flex-1 flex flex-col text-gray-500 bg-[#1f1f1f] overflow-hidden">
