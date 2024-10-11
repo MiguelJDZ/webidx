@@ -27,7 +27,7 @@ const Tabs: React.FC<TabsProps> = ({ openFiles, activeFile, onSelectTab, onClose
               onCloseTab(fileName)
             }}
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
       ))}
